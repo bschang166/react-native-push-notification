@@ -6,13 +6,9 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
 import android.util.Log;
 
-import com.facebook.react.ReactApplication;
-import com.facebook.react.ReactInstanceManager;
-import com.facebook.react.bridge.ReactContext;
+import com.facebook.react.HeadlessJsTaskService;
 
 import static com.dieam.reactnativepushnotification.modules.RNPushNotification.LOG_TAG;
 
@@ -52,39 +48,12 @@ public class RNPushNotificationActions extends BroadcastReceiver {
 
           helper.invokeApp(bundle);
       } else {
+        Intent serviceIntent = new Intent(context, RNPushNotificationTaskService.class);
+        serviceIntent.putExtra("taskKey", RNPushNotificationTaskService.TASK_ON_LOCAL_NOTIFICATION_ACTION);
+        serviceIntent.putExtras(bundle);
 
-        // We need to run this on the main thread, as the React code assumes that is true.
-        // Namely, DevServerHelper constructs a Handler() without a Looper, which triggers:
-        // "Can't create handler inside thread that has not called Looper.prepare()"
-        Handler handler = new Handler(Looper.getMainLooper());
-        handler.post(new Runnable() {
-            public void run() {
-                // Construct and load our normal React JS code bundle
-                final ReactInstanceManager mReactInstanceManager = ((ReactApplication) context.getApplicationContext()).getReactNativeHost().getReactInstanceManager();
-                ReactContext context = mReactInstanceManager.getCurrentReactContext();
-                // If it's constructed, send a notification
-                if (context != null) {
-                    RNPushNotificationJsDelivery mJsDelivery = new RNPushNotificationJsDelivery(context);
-
-                    mJsDelivery.notifyNotificationAction(bundle);
-                } else {
-                    // Otherwise wait for construction, then send the notification
-                    mReactInstanceManager.addReactInstanceEventListener(new ReactInstanceManager.ReactInstanceEventListener() {
-                        public void onReactContextInitialized(ReactContext context) {
-                            RNPushNotificationJsDelivery mJsDelivery = new RNPushNotificationJsDelivery(context);
-
-                            mJsDelivery.notifyNotificationAction(bundle);
- 
-                            mReactInstanceManager.removeReactInstanceEventListener(this);
-                        }
-                    });
-                    if (!mReactInstanceManager.hasStartedCreatingInitialContext()) {
-                        // Construct it in the background
-                        mReactInstanceManager.createReactContextInBackground();
-                    }
-                }
-            }
-        });
+        context.startService(serviceIntent);
+        HeadlessJsTaskService.acquireWakeLockNow(context);
       }
     }
 }
